@@ -3,6 +3,7 @@ from helper import djpeg_available, cjpeg_available
 
 import random
 from io import BytesIO
+import os
 
 from PIL import Image
 from PIL import ImageFile
@@ -22,10 +23,10 @@ class TestFileJpeg(PillowTestCase):
     def roundtrip(self, im, **options):
         out = BytesIO()
         im.save(out, "JPEG", **options)
-        bytes = out.tell()
+        test_bytes = out.tell()
         out.seek(0)
         im = Image.open(out)
-        im.bytes = bytes  # for testing only
+        im.bytes = test_bytes  # for testing only
         return im
 
     def test_sanity(self):
@@ -165,6 +166,17 @@ class TestFileJpeg(PillowTestCase):
         im = hopper()
         im.save(f, 'JPEG', quality=90, exif=b"1"*65532)
 
+    def test_exif_typeerror(self):
+        im = Image.open('Tests/images/exif_typeerror.jpg')
+        # Should not raise a TypeError
+        im._getexif()
+
+    def test_exif_gps_typeerror(self):
+        im = Image.open('Tests/images/exif_gps_typeerror.jpg')
+
+        # Should not raise a TypeError
+        im._getexif()
+
     def test_progressive_compat(self):
         im1 = self.roundtrip(hopper())
         im2 = self.roundtrip(hopper(), progressive=1)
@@ -290,25 +302,24 @@ class TestFileJpeg(PillowTestCase):
 
         # dict of qtable lists
         self.assert_image_similar(im,
-                                  self.roundtrip(im,
-                                                 qtables={0: standard_l_qtable,
-                                                          1: standard_chrominance_qtable}),
-                                  30)
+                                  self.roundtrip(im, qtables={
+                                    0: standard_l_qtable,
+                                    1: standard_chrominance_qtable
+                                  }), 30)
 
         # not a sequence
         self.assertRaises(Exception, lambda: self.roundtrip(im, qtables='a'))
         # sequence wrong length
         self.assertRaises(Exception, lambda: self.roundtrip(im, qtables=[]))
         # sequence wrong length
-        self.assertRaises(Exception, lambda: self.roundtrip(im, qtables=[1,2,3,4,5]))
+        self.assertRaises(Exception,
+                          lambda: self.roundtrip(im, qtables=[1, 2, 3, 4, 5]))
 
         # qtable entry not a sequence
         self.assertRaises(Exception, lambda: self.roundtrip(im, qtables=[1]))
         # qtable entry has wrong number of items
-        self.assertRaises(Exception, lambda: self.roundtrip(im, qtables=[[1,2,3,4]]))
-        
-        
-        
+        self.assertRaises(Exception,
+                          lambda: self.roundtrip(im, qtables=[[1, 2, 3, 4]]))
 
     @unittest.skipUnless(djpeg_available(), "djpeg not available")
     def test_load_djpeg(self):
@@ -333,6 +344,37 @@ class TestFileJpeg(PillowTestCase):
         # Assert
         self.assertEqual(tag_ids['RelatedImageWidth'], 0x1001)
         self.assertEqual(tag_ids['RelatedImageLength'], 0x1002)
+
+    def test_MAXBLOCK_scaling(self):
+        def gen_random_image(size):
+            """ Generates a very hard to compress file
+            :param size: tuple
+            """
+            return Image.frombytes('RGB',
+                                   size, os.urandom(size[0]*size[1] * 3))
+
+        im = gen_random_image((512, 512))
+        f = self.tempfile("temp.jpeg")
+        im.save(f, quality=100, optimize=True)
+
+        reloaded = Image.open(f)
+
+        # none of these should crash
+        reloaded.save(f, quality='keep')
+        reloaded.save(f, quality='keep', progressive=True)
+        reloaded.save(f, quality='keep', optimize=True)
+
+    def test_bad_mpo_header(self):
+        """ Treat unknown MPO as JPEG """
+        # Arrange
+
+        # Act
+        # Shouldn't raise error
+        fn = "Tests/images/sugarshack_bad_mpo_header.jpg"
+        im = self.assert_warning(UserWarning, lambda: Image.open(fn))
+
+        # Assert
+        self.assertEqual(im.format, "JPEG")
 
 
 if __name__ == '__main__':

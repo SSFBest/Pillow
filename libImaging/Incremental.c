@@ -175,7 +175,7 @@ ImagingIncrementalCodecCreate(ImagingIncrementalCodecEntry codec_entry,
   codec->state = state;
   codec->result = 0;
   codec->stream.fd = fd;
-  codec->stream.buffer = codec->stream.ptr = codec->stream.end 
+  codec->stream.buffer = codec->stream.ptr = codec->stream.end
     = codec->stream.top = NULL;
   codec->started = 0;
   codec->seekable = seekable;
@@ -294,7 +294,7 @@ ImagingIncrementalCodecDestroy(ImagingIncrementalCodec codec)
   if (codec->seekable && codec->stream.fd < 0)
     free (codec->stream.buffer);
 
-  codec->stream.buffer = codec->stream.ptr = codec->stream.end 
+  codec->stream.buffer = codec->stream.ptr = codec->stream.end
     = codec->stream.top = NULL;
 
 #ifdef _WIN32
@@ -413,7 +413,7 @@ ImagingIncrementalCodecBytesInBuffer(ImagingIncrementalCodec codec)
   return codec->stream.ptr - codec->stream.buffer;
 }
 
-ssize_t
+Py_ssize_t
 ImagingIncrementalCodecRead(ImagingIncrementalCodec codec,
                              void *buffer, size_t bytes)
 {
@@ -428,7 +428,7 @@ ImagingIncrementalCodecRead(ImagingIncrementalCodec codec,
   DEBUG("reading (want %llu bytes)\n", (unsigned long long)bytes);
 
   if (codec->stream.fd >= 0) {
-    ssize_t ret = read(codec->stream.fd, buffer, bytes);
+    Py_ssize_t ret = read(codec->stream.fd, buffer, bytes);
     DEBUG("read %lld bytes from fd\n", (long long)ret);
     return ret;
   }
@@ -497,7 +497,7 @@ ImagingIncrementalCodecSkip(ImagingIncrementalCodec codec,
     off_t done = 0;
     while (bytes) {
       size_t todo = (size_t)(bytes > 256 ? 256 : bytes);
-      ssize_t written = ImagingIncrementalCodecWrite(codec, zeroes, todo);
+      Py_ssize_t written = ImagingIncrementalCodecWrite(codec, zeroes, todo);
       if (written <= 0)
         break;
       done += written;
@@ -554,7 +554,7 @@ ImagingIncrementalCodecSkip(ImagingIncrementalCodec codec,
   return done;
 }
 
-ssize_t
+Py_ssize_t
 ImagingIncrementalCodecWrite(ImagingIncrementalCodec codec,
                              const void *buffer, size_t bytes)
 {

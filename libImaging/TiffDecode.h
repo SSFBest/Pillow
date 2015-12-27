@@ -13,6 +13,12 @@
 #include <tiff.h>
 #endif
 
+/* UNDONE -- what are we using from this? */
+/*#ifndef _UNISTD_H
+  # include <unistd.h>
+  # endif
+*/
+
 #ifndef min
 #define min(x,y) (( x > y ) ? y : x )
 #define max(x,y) (( x < y ) ? y : x )
@@ -41,7 +47,7 @@ extern int ImagingLibTiffSetField(ImagingCodecState state, ttag_t tag, ...);
 
 /* 
    Trace debugging
-   legacy, don't enable for python 3.x, unicode issues. 
+   legacy, don't enable for Python 3.x, unicode issues.
 */
 
 /*

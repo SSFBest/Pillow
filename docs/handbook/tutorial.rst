@@ -193,7 +193,9 @@ For more advanced tricks, the paste method can also take a transparency mask as
 an optional argument. In this mask, the value 255 indicates that the pasted
 image is opaque in that position (that is, the pasted image should be used as
 is). The value 0 means that the pasted image is completely transparent. Values
-in-between indicate different levels of transparency.
+in-between indicate different levels of transparency. For example, pasting an
+RGBA image and also using it as the mask would paste the opaque portion
+of the image but not its transparent background.
 
 The Python Imaging Library also allows you to work with the individual bands of
 an multi-band image, such as an RGB image. The split method creates a set of
@@ -445,10 +447,9 @@ Drawing Postscript
     ps.image(box, im, 75)
     ps.rectangle(box)
 
-    # draw centered title
+    # draw title
     ps.setfont("HelveticaNarrow-Bold", 36)
-    w, h, b = ps.textsize(title)
-    ps.text((4*72-w/2, 1*72-h), title)
+    ps.text((3*72, 4*72), title)
 
     ps.end_document()
 

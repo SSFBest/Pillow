@@ -43,11 +43,6 @@ class PillowTestCase(unittest.TestCase):
         else:
             print("=== orphaned temp file: %s" % path)
 
-    def assert_almost_equal(self, a, b, msg=None, eps=1e-6):
-        self.assertLess(
-            abs(a-b), eps,
-            msg or "got %r, expected %r" % (a, b))
-
     def assert_deep_equal(self, a, b, msg=None):
         try:
             self.assertEqual(
@@ -130,7 +125,7 @@ class PillowTestCase(unittest.TestCase):
         # Skip if platform/travis matches, and
         # PILLOW_RUN_KNOWN_BAD is not true in the environment.
         if bool(os.environ.get('PILLOW_RUN_KNOWN_BAD', False)):
-            print (os.environ.get('PILLOW_RUN_KNOWN_BAD', False))
+            print(os.environ.get('PILLOW_RUN_KNOWN_BAD', False))
             return
 
         skip = True
@@ -165,7 +160,6 @@ class PillowTestCase(unittest.TestCase):
 
 # helpers
 
-import sys
 py3 = (sys.version_info >= (3, 0))
 
 
@@ -175,31 +169,33 @@ def fromstring(data):
     return Image.open(BytesIO(data))
 
 
-def tostring(im, format, **options):
+def tostring(im, string_format, **options):
     from io import BytesIO
     out = BytesIO()
-    im.save(out, format, **options)
+    im.save(out, string_format, **options)
     return out.getvalue()
 
 
-def hopper(mode="RGB", cache={}):
+def hopper(mode=None, cache={}):
     from PIL import Image
-    im = None
-    # FIXME: Implement caching to reduce reading from disk but so an original
-    # copy is returned each time and the cached image isn't modified by tests
+    if mode is None:
+        # Always return fresh not-yet-loaded version of image.
+        # Operations on not-yet-loaded images is separate class of errors
+        # what we should catch.
+        return Image.open("Tests/images/hopper.ppm")
+    # Use caching to reduce reading from disk but so an original copy is
+    # returned each time and the cached image isn't modified by tests
     # (for fast, isolated, repeatable tests).
-    # im = cache.get(mode)
+    im = cache.get(mode)
     if im is None:
-        if mode == "RGB":
-            im = Image.open("Tests/images/hopper.ppm")
-        elif mode == "F":
+        if mode == "F":
             im = hopper("L").convert(mode)
         elif mode[:4] == "I;16":
             im = hopper("I").convert(mode)
         else:
-            im = hopper("RGB").convert(mode)
-    # cache[mode] = im
-    return im
+            im = hopper().convert(mode)
+        cache[mode] = im
+    return im.copy()
 
 
 def command_succeeds(cmd):
@@ -207,7 +203,6 @@ def command_succeeds(cmd):
     Runs the command, which must be a list of strings. Returns True if the
     command succeeds, or False if an OSError was raised by subprocess.Popen.
     """
-    import os
     import subprocess
     with open(os.devnull, 'w') as f:
         try:
@@ -233,6 +228,9 @@ def netpbm_available():
 def imagemagick_available():
     return IMCONVERT and command_succeeds([IMCONVERT, '-version'])
 
+
+def on_appveyor():
+    return 'APPVEYOR' in os.environ
 
 if sys.platform == 'win32':
     IMCONVERT = os.environ.get('MAGICK_HOME', '')

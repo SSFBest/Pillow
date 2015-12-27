@@ -13,7 +13,7 @@ Example: Using the :py:mod:`~PIL.ImageMath` module
 
 .. code-block:: python
 
-    import Image, ImageMath
+    from PIL import Image, ImageMath
 
     im1 = Image.open("image1.jpg")
     im2 = Image.open("image2.jpg")
@@ -27,7 +27,7 @@ Example: Using the :py:mod:`~PIL.ImageMath` module
 
     In the current version, :py:mod:`~PIL.ImageMath` only supports
     single-layer images. To process multi-band images, use the
-    :py:meth:`~PIL.Image.Image.split` method or :py:func:`~PIL.Image.merge` 
+    :py:meth:`~PIL.Image.Image.split` method or :py:func:`~PIL.Image.merge`
     function.
 
     :param expression: A string which uses the standard Python expression

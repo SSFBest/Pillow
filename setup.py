@@ -26,7 +26,7 @@ _IMAGING = (
     "decode", "encode", "map", "display", "outline", "path")
 
 _LIB_IMAGING = (
-    "Access", "AlphaComposite", "Antialias", "Bands", "BitDecode", "Blend",
+    "Access", "AlphaComposite", "Resample", "Bands", "BitDecode", "Blend",
     "Chops", "Convert", "ConvertYCbCr", "Copy", "Crc32", "Crop", "Dib", "Draw",
     "Effects", "EpsEncode", "File", "Fill", "Filter", "FliDecode",
     "Geometry", "GetBBox", "GifDecode", "GifEncode", "HexDecode",
@@ -37,7 +37,7 @@ _LIB_IMAGING = (
     "RankFilter", "RawDecode", "RawEncode", "Storage", "SunRleDecode",
     "TgaRleDecode", "Unpack", "UnpackYCC", "UnsharpMask", "XbmDecode",
     "XbmEncode", "ZipDecode", "ZipEncode", "TiffDecode", "Incremental",
-    "Jpeg2KDecode", "Jpeg2KEncode")
+    "Jpeg2KDecode", "Jpeg2KEncode", "BoxBlur")
 
 
 def _add_directory(path, dir, where=None):
@@ -90,7 +90,7 @@ except (ImportError, OSError):
 
 
 NAME = 'Pillow'
-PILLOW_VERSION = '2.6.0'
+PILLOW_VERSION = '3.1.0.dev0'
 TCL_ROOT = None
 JPEG_ROOT = None
 JPEG2K_ROOT = None
@@ -105,7 +105,7 @@ class pil_build_ext(build_ext):
     class feature:
         zlib = jpeg = tiff = freetype = tcl = tk = lcms = webp = webpmux = None
         jpeg2000 = None
-        required = []
+        required = set(['jpeg', 'zlib'])
 
         def require(self, feat):
             return feat in self.required
@@ -139,12 +139,13 @@ class pil_build_ext(build_ext):
         for x in self.feature:
             if getattr(self, 'disable_%s' % x):
                 setattr(self.feature, x, False)
+                self.feature.required.discard(x)
                 if getattr(self, 'enable_%s' % x):
                     raise ValueError(
                         'Conflicting options: --enable-%s and --disable-%s'
                         % (x, x))
             if getattr(self, 'enable_%s' % x):
-                self.feature.required.append(x)
+                self.feature.required.add(x)
 
     def build_extensions(self):
 
@@ -242,7 +243,7 @@ class pil_build_ext(build_ext):
         elif sys.platform.startswith("linux"):
             arch_tp = (plat.processor(), plat.architecture()[0])
             if arch_tp == ("x86_64", "32bit"):
-                # 32 bit build on 64 bit machine.
+                # 32-bit build on 64-bit machine.
                 _add_directory(library_dirs, "/usr/lib/i386-linux-gnu")
             else:
                 for platform_ in arch_tp:
@@ -302,12 +303,15 @@ class pil_build_ext(build_ext):
             self.add_multiarch_paths()
 
         elif sys.platform.startswith("netbsd"):
-                    _add_directory(library_dirs, "/usr/pkg/lib")
-                    _add_directory(include_dirs, "/usr/pkg/include")
+            _add_directory(library_dirs, "/usr/pkg/lib")
+            _add_directory(include_dirs, "/usr/pkg/include")
+
+        elif sys.platform.startswith("sunos5"):
+                    _add_directory(library_dirs, "/opt/local/lib")
+                    _add_directory(include_dirs, "/opt/local/include")
 
         # FIXME: check /opt/stuff directories here?
 
-        #
         # locate tkinter libraries
 
         if _tkinter:
@@ -453,9 +457,6 @@ class pil_build_ext(build_ext):
                     if os.path.isfile(os.path.join(dir, "ft2build.h")):
                         freetype_version = 21
                         break
-                    if os.path.isdir(os.path.join(dir, "freetype")):
-                        freetype_version = 20
-                        break
                 if freetype_version:
                     feature.freetype = "freetype"
                     feature.freetype_version = freetype_version
@@ -465,10 +466,13 @@ class pil_build_ext(build_ext):
         if feature.want('lcms'):
             if _find_include_file(self, "lcms2.h"):
                 if _find_library_file(self, "lcms2"):
-                    feature.lcms = "lcms"
+                    feature.lcms = "lcms2"
+                elif _find_library_file(self, "lcms2_static"):
+                    # alternate Windows name.
+                    feature.lcms = "lcms2_static"
 
         if _tkinter and _find_include_file(self, "tk.h"):
-            # the library names may vary somewhat (e.g. tcl84 or tcl8.4)
+            # the library names may vary somewhat (e.g. tcl85 or tcl8.5)
             version = TCL_VERSION[0] + TCL_VERSION[2]
             if feature.want('tcl'):
                 if _find_library_file(self, "tcl" + version):
@@ -502,6 +506,10 @@ class pil_build_ext(build_ext):
 
         for f in feature:
             if not getattr(feature, f) and feature.require(f):
+                if f in ('jpeg', 'libz'):
+                    raise ValueError('%s is required unless explicitly disabled'
+                                     ' using --disable-%s, aborting' %
+                                     (f, f))
                 raise ValueError(
                     '--enable-%s requested but %s not found, aborting.'
                     % (f, f))
@@ -543,16 +551,8 @@ class pil_build_ext(build_ext):
         # additional libraries
 
         if feature.freetype:
-            defs = []
-            if feature.freetype_version == 20:
-                defs.append(("USE_FREETYPE_2_0", None))
             exts.append(Extension(
-                "PIL._imagingft", ["_imagingft.c"], libraries=["freetype"],
-                define_macros=defs))
-
-        if os.path.isfile("_imagingtiff.c") and feature.tiff:
-            exts.append(Extension(
-                "PIL._imagingtiff", ["_imagingtiff.c"], libraries=["tiff"]))
+                "PIL._imagingft", ["_imagingft.c"], libraries=["freetype"]))
 
         if os.path.isfile("_imagingcms.c") and feature.lcms:
             extra = []
@@ -561,7 +561,7 @@ class pil_build_ext(build_ext):
             exts.append(Extension(
                 "PIL._imagingcms",
                 ["_imagingcms.c"],
-                libraries=["lcms2"] + extra))
+                libraries=[feature.lcms] + extra))
 
         if os.path.isfile("_webp.c") and feature.webp:
             libs = [feature.webp]
@@ -570,37 +570,38 @@ class pil_build_ext(build_ext):
             if feature.webpmux:
                 defs.append(("HAVE_WEBPMUX", None))
                 libs.append(feature.webpmux)
-                libs.append(feature.webpmux.replace('pmux','pdemux'))
+                libs.append(feature.webpmux.replace('pmux', 'pdemux'))
 
             exts.append(Extension(
                 "PIL._webp", ["_webp.c"], libraries=libs, define_macros=defs))
 
-        if sys.platform == "darwin":
-            # locate Tcl/Tk frameworks
-            frameworks = []
-            framework_roots = [
-                "/Library/Frameworks",
-                "/System/Library/Frameworks"]
-            for root in framework_roots:
-                if (
-                        os.path.exists(os.path.join(root, "Tcl.framework")) and
-                        os.path.exists(os.path.join(root, "Tk.framework"))):
-                    print("--- using frameworks at %s" % root)
-                    frameworks = ["-framework", "Tcl", "-framework", "Tk"]
-                    dir = os.path.join(root, "Tcl.framework", "Headers")
-                    _add_directory(self.compiler.include_dirs, dir, 0)
-                    dir = os.path.join(root, "Tk.framework", "Headers")
-                    _add_directory(self.compiler.include_dirs, dir, 1)
-                    break
-            if frameworks:
+        if feature.tcl and feature.tk:
+            if sys.platform == "darwin":
+                # locate Tcl/Tk frameworks
+                frameworks = []
+                framework_roots = [
+                    "/Library/Frameworks",
+                    "/System/Library/Frameworks"]
+                for root in framework_roots:
+                    root_tcl = os.path.join(root, "Tcl.framework")
+                    root_tk = os.path.join(root, "Tk.framework")
+                    if (os.path.exists(root_tcl) and os.path.exists(root_tk)):
+                        print("--- using frameworks at %s" % root)
+                        frameworks = ["-framework", "Tcl", "-framework", "Tk"]
+                        dir = os.path.join(root_tcl, "Headers")
+                        _add_directory(self.compiler.include_dirs, dir, 0)
+                        dir = os.path.join(root_tk, "Headers")
+                        _add_directory(self.compiler.include_dirs, dir, 1)
+                        break
+                if frameworks:
+                    exts.append(Extension(
+                        "PIL._imagingtk", ["_imagingtk.c", "Tk/tkImaging.c"],
+                        extra_compile_args=frameworks,
+                        extra_link_args=frameworks))
+            else:
                 exts.append(Extension(
                     "PIL._imagingtk", ["_imagingtk.c", "Tk/tkImaging.c"],
-                    extra_compile_args=frameworks, extra_link_args=frameworks))
-                feature.tcl = feature.tk = 1  # mark as present
-        elif feature.tcl and feature.tk:
-            exts.append(Extension(
-                "PIL._imagingtk", ["_imagingtk.c", "Tk/tkImaging.c"],
-                libraries=[feature.tcl, feature.tk]))
+                    libraries=[feature.tcl, feature.tk]))
 
         if os.path.isfile("_imagingmath.c"):
             exts.append(Extension("PIL._imagingmath", ["_imagingmath.c"]))
@@ -722,12 +723,15 @@ class pil_build_ext(build_ext):
             os.unlink(tmpfile)
 
 
+def debug_build():
+    return hasattr(sys, 'gettotalrefcount')
+
 setup(
     name=NAME,
     version=PILLOW_VERSION,
     description='Python Imaging Library (Fork)',
     long_description=_read('README.rst').decode('utf-8'),
-    author='Alex Clark (fork author)',
+    author='Alex Clark (Fork Author)',
     author_email='aclark@aclark.net',
     url='http://python-pillow.github.io/',
     classifiers=[
@@ -745,15 +749,17 @@ setup(
         "Programming Language :: Python :: 3.2",
         "Programming Language :: Python :: 3.3",
         "Programming Language :: Python :: 3.4",
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Programming Language :: Python :: Implementation :: PyPy',
         ],
     cmdclass={"build_ext": pil_build_ext},
     ext_modules=[Extension("PIL._imaging", ["_imaging.c"])],
     include_package_data=True,
     packages=find_packages(),
-    scripts=glob.glob("Scripts/pil*.py"),
-    test_suite='PIL.tests',
+    scripts=glob.glob("Scripts/*.py"),
+    test_suite='nose.collector',
     keywords=["Imaging", ],
     license='Standard PIL License',
-    zip_safe=True,
+    zip_safe=not debug_build(),
 )
 # End of file

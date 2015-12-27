@@ -12,23 +12,25 @@
 #
 
 from __future__ import print_function
+import getopt
+import os
+import sys
+import subprocess
 
 VERSION = "pilprint 0.3/2003-05-05"
 
 from PIL import Image
 from PIL import PSDraw
 
-letter = ( 1.0*72, 1.0*72, 7.5*72, 10.0*72 )
+letter = (1.0*72, 1.0*72, 7.5*72, 10.0*72)
 
-def description(file, image):
-    import os
-    title = os.path.splitext(os.path.split(file)[1])[0]
+
+def description(filepath, image):
+    title = os.path.splitext(os.path.split(filepath)[1])[0]
     format = " (%dx%d "
     if image.format:
         format = " (" + image.format + " %dx%d "
     return title + format % image.size + image.mode + ")"
-
-import getopt, os, sys
 
 if len(sys.argv) == 1:
     print("PIL Print 0.2a1/96-10-04 -- print image files")
@@ -45,8 +47,8 @@ except getopt.error as v:
     print(v)
     sys.exit(1)
 
-printer = None # print to stdout
-monochrome = 1 # reduce file size for most common case
+printerArgs = []  # print to stdout
+monochrome = 1    # reduce file size for most common case
 
 for o, a in opt:
     if o == "-d":
@@ -59,24 +61,25 @@ for o, a in opt:
         monochrome = 0
     elif o == "-p":
         # default printer channel
-        printer = "lpr"
+        printerArgs = ["lpr"]
     elif o == "-P":
         # printer channel
-        printer = "lpr -P%s" % a
+        printerArgs = ["lpr", "-P%s" % a]
 
-for file in argv:
+for filepath in argv:
     try:
 
-        im = Image.open(file)
+        im = Image.open(filepath)
 
-        title = description(file, im)
+        title = description(filepath, im)
 
         if monochrome and im.mode not in ["1", "L"]:
             im.draft("L", im.size)
             im = im.convert("L")
 
-        if printer:
-            fp = os.popen(printer, "w")
+        if printerArgs:
+            p = subprocess.Popen(printerArgs, stdin=subprocess.PIPE)
+            fp = p.stdin
         else:
             fp = sys.stdout
 
@@ -89,6 +92,9 @@ for file in argv:
         ps.text((letter[0], letter[1]-30), VERSION)
         ps.image(letter, im)
         ps.end_document()
+
+        if printerArgs:
+            fp.close()
 
     except:
         print("cannot print image", end=' ')

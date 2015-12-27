@@ -204,19 +204,6 @@ ImagingNewDIB(const char *mode, int xsize, int ysize)
 
 #endif
 
-#if 0
-	    {
-		/* DEBUG: dump palette to file */
-		FILE *err = fopen("dib.pal", "w");
-		for (i = 0; i < 256; i++)
-		    fprintf(err, "%d: %d/%d/%d\n", i,
-			    pal->palPalEntry[i].peRed,
-			    pal->palPalEntry[i].peGreen,
-			    pal->palPalEntry[i].peBlue);
-		fclose(err);
-	    }
-#endif
-
 	    dib->palette = CreatePalette(pal);
 
 	}
@@ -241,7 +228,7 @@ ImagingPasteDIB(ImagingDIB dib, Imaging im, int xy[4])
 }
 
 void
-ImagingExposeDIB(ImagingDIB dib, int dc)
+ImagingExposeDIB(ImagingDIB dib, void *dc)
 {
     /* Copy bitmap to display */
 
@@ -251,7 +238,7 @@ ImagingExposeDIB(ImagingDIB dib, int dc)
 }
 
 void
-ImagingDrawDIB(ImagingDIB dib, int dc, int dst[4], int src[4])
+ImagingDrawDIB(ImagingDIB dib, void *dc, int dst[4], int src[4])
 {
     /* Copy bitmap to printer/display */
 
@@ -271,7 +258,7 @@ ImagingDrawDIB(ImagingDIB dib, int dc, int dst[4], int src[4])
 }
 
 int
-ImagingQueryPaletteDIB(ImagingDIB dib, int dc)
+ImagingQueryPaletteDIB(ImagingDIB dib, void *dc)
 {
     /* Install bitmap palette */
 

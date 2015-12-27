@@ -400,7 +400,7 @@ ImagingPackLAB(UINT8* out, const UINT8* in, int pixels)
     /* LAB triplets */
     for (i = 0; i < pixels; i++) {
 	out[0] = in[0];
-	out[1] = in[1] ^ 128; /* signed in outside world */ 
+	out[1] = in[1] ^ 128; /* signed in outside world */
 	out[2] = in[2] ^ 128;
 	out += 3; in += 4;
     }
@@ -529,6 +529,11 @@ static struct {
     {"RGBA",   	"G",            8,      band1},
     {"RGBA",   	"B",            8,      band2},
     {"RGBA",   	"A",            8,      band3},
+
+    /* true colour w. alpha premultiplied */
+    {"RGBa",	"RGBa",		32,	copy4},
+    {"RGBa",	"BGRa",		32,	ImagingPackBGRA},
+    {"RGBa",	"aBGR",		32,	ImagingPackABGR},
 
     /* true colour w. padding */
     {"RGBX",	"RGBX",		32,	copy4},
